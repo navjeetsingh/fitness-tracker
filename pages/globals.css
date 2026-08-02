@@ -1,0 +1,25 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body { background: #0A0E1A; color: #F9FAFB; }
+
+.stat-card {
+  @apply bg-panel border border-border rounded-xl p-5 flex flex-col gap-1;
+}
+.metric-label {
+  @apply text-xs font-mono text-muted uppercase tracking-widest;
+}
+.metric-value {
+  @apply text-2xl font-mono font-bold;
+}
+.metric-sub {
+  @apply text-xs text-muted font-mono;
+}
+.section-title {
+  @apply text-xs font-mono text-muted uppercase tracking-widest mb-4;
+}
+.pill {
+  @apply text-xs font-mono px-2 py-0.5 rounded-full;
+}
