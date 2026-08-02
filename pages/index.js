@@ -235,9 +235,10 @@ export default function Dashboard() {
   const fetchStrava = useCallback(async () => {
     try {
       const r = await fetch('/api/strava')
-      if (r.status === 401) { setError(p => ({ ...p, strava: 'not_connected' })); return }
       const d = await r.json()
-      setStrava(d)
+      if (d.error) { setError(p => ({ ...p, strava: d.error })); return }
+      setStrava(d.pending ? null : d)
+      setAthlete(d.athlete || null)
       setError(p => ({ ...p, strava: null }))
     } catch { setError(p => ({ ...p, strava: 'fetch_error' })) }
     finally { setLoading(p => ({ ...p, strava: false })) }
@@ -278,9 +279,6 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => {
-    // Parse athlete cookie
-    const match = document.cookie.match(/strava_athlete=([^;]+)/)
-    if (match) try { setAthlete(JSON.parse(decodeURIComponent(match[1]))) } catch {}
     fetchStrava()
     fetchGarmin()
     fetchYazio()
@@ -333,14 +331,6 @@ export default function Dashboard() {
             >
               ↻ Refresh
             </button>
-            {error.strava === 'not_connected' && (
-              <a
-                href="/api/auth/strava"
-                className="text-xs font-mono bg-accent text-white px-3 py-1.5 rounded hover:bg-orange-600 transition-colors"
-              >
-                Connect Strava
-              </a>
-            )}
           </div>
         </header>
 
@@ -527,13 +517,6 @@ export default function Dashboard() {
                 {[...Array(5)].map((_, i) => (
                   <div key={i} className="h-12 bg-border/30 rounded animate-pulse" />
                 ))}
-              </div>
-            ) : error.strava === 'not_connected' ? (
-              <div className="text-center py-8">
-                <p className="text-muted font-mono text-sm mb-4">Connect Strava to see your activities</p>
-                <a href="/api/auth/strava" className="bg-accent text-white font-mono text-sm px-4 py-2 rounded hover:bg-orange-600 transition-colors">
-                  Connect Strava →
-                </a>
               </div>
             ) : strava?.activities?.length ? (
               <div>

@@ -1,8 +1,14 @@
 // pages/api/auth/callback.js
-// Exchanges auth code for tokens, stores in cookie
+// Completes the one-time Strava setup: exchanges the code for tokens and
+// stores them server-side (see lib/strava.js) instead of in a cookie —
+// the dashboard reads Strava data for every visitor from that stored token,
+// there's no per-visitor session.
+import { storeStravaAuth } from '../../../lib/strava'
+
 export default async function handler(req, res) {
-  const { code } = req.query
+  const { code, state } = req.query
   if (!code) return res.redirect('/?error=no_code')
+  if (state !== process.env.STRAVA_SETUP_SECRET) return res.status(403).send('Forbidden')
 
   try {
     const response = await fetch('https://www.strava.com/oauth/token', {
@@ -16,20 +22,18 @@ export default async function handler(req, res) {
       }),
     })
     const data = await response.json()
-    if (data.errors) return res.redirect('/?error=token_exchange')
+    if (data.errors || !data.access_token) return res.redirect('/?error=token_exchange')
 
-    // Store tokens in secure cookies (7 days)
-    const cookieOpts = 'Path=/; HttpOnly; SameSite=Lax; Max-Age=604800'
-    res.setHeader('Set-Cookie', [
-      `strava_access_token=${data.access_token}; ${cookieOpts}`,
-      `strava_refresh_token=${data.refresh_token}; ${cookieOpts}`,
-      `strava_expires_at=${data.expires_at}; ${cookieOpts}`,
-      `strava_athlete=${encodeURIComponent(JSON.stringify({
+    await storeStravaAuth({
+      refresh_token: data.refresh_token,
+      access_token: data.access_token,
+      expires_at: data.expires_at,
+      athlete: {
         name: `${data.athlete.firstname} ${data.athlete.lastname}`,
         avatar: data.athlete.profile,
         id: data.athlete.id,
-      }))}; Path=/; SameSite=Lax; Max-Age=604800`,
-    ])
+      },
+    })
     res.redirect('/?connected=strava')
   } catch (e) {
     res.redirect('/?error=server')
