@@ -32,7 +32,7 @@ cp .env.example .env.local
 
 | Variable | Where to find it |
 |---|---|
-| `STRAVA_CLIENT_ID` | strava.com/settings/api → Client ID (yours is 255046) |
+| `STRAVA_CLIENT_ID` | strava.com/settings/api → Client ID |
 | `STRAVA_CLIENT_SECRET` | strava.com/settings/api → click Show on Client Secret |
 | `GARMIN_EMAIL` | Your Garmin Connect login email |
 | `GARMIN_PASSWORD` | Your Garmin Connect password |
