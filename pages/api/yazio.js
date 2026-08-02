@@ -1,30 +1,19 @@
 // pages/api/yazio.js
-// Yazio has no public API — accepts manually pasted nutrition data
-// POST: { date, protein, calories, carbs, fat, meals[] }
-// GET: returns stored data from env-based simple store
+// Returns the most recently synced nutrition summary (see lib/yazio.js).
+// Data is populated by the nightly cron (pages/api/cron/yazio.js) or the
+// dashboard's Refresh button (pages/api/yazio/refresh.js) — this route only reads.
+import { getStoredYazioSummary } from '../../lib/yazio'
 
-const PROTEIN_TARGET = 150 // grams/day for marathon training
+export default async function handler(req, res) {
+  if (req.method !== 'GET') return res.status(405).end()
 
-export default function handler(req, res) {
-  if (req.method === 'POST') {
-    // Client sends today's nutrition data (copy from Yazio app)
-    const { protein, calories, carbs, fat, date } = req.body
-    const gap = PROTEIN_TARGET - (protein || 0)
-    res.json({
-      received: true,
-      date,
-      protein,
-      calories,
-      carbs,
-      fat,
-      proteinTarget: PROTEIN_TARGET,
-      proteinGap: gap > 0 ? gap : 0,
-      proteinStatus: gap <= 0 ? 'on_target' : gap < 50 ? 'close' : 'deficit',
-    })
-  } else {
-    res.json({
-      message: 'Yazio has no public API. Use the Update Nutrition button on the dashboard to enter today\'s data from the Yazio app.',
-      proteinTarget: PROTEIN_TARGET,
-    })
+  try {
+    const summary = await getStoredYazioSummary()
+    if (!summary) {
+      return res.json({ pending: true, message: 'No Yazio data synced yet — press Refresh.' })
+    }
+    res.json(summary)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
   }
 }

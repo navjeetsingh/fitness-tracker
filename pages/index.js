@@ -150,29 +150,17 @@ function ActivityRow({ act }) {
   )
 }
 
-function NutritionPanel({ onUpdate }) {
-  const [data, setData] = useState(null)
-  const [form, setForm] = useState({ protein: '', calories: '', carbs: '', fat: '' })
-  const [saving, setSaving] = useState(false)
-
-  const save = async () => {
-    setSaving(true)
-    const r = await fetch('/api/yazio', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, date: dayjs().format('YYYY-MM-DD') }),
-    })
-    const d = await r.json()
-    setData(d)
-    setSaving(false)
-  }
-
+function NutritionPanel({ data, loading, error, onRefresh }) {
   const proteinPct = data ? Math.min(100, (data.protein / data.proteinTarget) * 100) : 0
 
   return (
     <div className="stat-card">
       <span className="section-title">🌱 Nutrition (Yazio)</span>
-      {data ? (
+      {loading ? (
+        <span className="text-xs text-muted font-mono animate-pulse">Loading Yazio data...</span>
+      ) : error ? (
+        <p className="text-xs font-mono text-warn">⚠ {error}</p>
+      ) : data ? (
         <div className="space-y-3">
           <div className="flex justify-between items-baseline">
             <span className="text-xs font-mono text-muted">Protein</span>
@@ -191,29 +179,16 @@ function NutritionPanel({ onUpdate }) {
           {data.proteinGap > 0 && (
             <p className="text-xs font-mono text-warn">⚠ {data.proteinGap}g protein still needed today</p>
           )}
-          <button onClick={() => setData(null)} className="text-xs text-muted font-mono hover:text-white transition-colors">Update →</button>
+          <p className="text-xs font-mono text-muted">Synced {dayjs(data.fetchedAt).format('HH:mm')}</p>
         </div>
       ) : (
-        <div className="space-y-2">
-          <p className="text-xs text-muted font-mono mb-3">Enter today's totals from Yazio app</p>
-          {['protein', 'calories', 'carbs', 'fat'].map(k => (
-            <div key={k} className="flex items-center gap-2">
-              <label className="text-xs font-mono text-muted w-16 capitalize">{k}</label>
-              <input
-                type="number"
-                value={form[k]}
-                onChange={e => setForm(p => ({ ...p, [k]: e.target.value }))}
-                placeholder={k === 'calories' ? 'kcal' : 'g'}
-                className="flex-1 bg-midnight border border-border rounded px-2 py-1 text-xs font-mono text-white placeholder-muted focus:outline-none focus:border-accent"
-              />
-            </div>
-          ))}
+        <div className="text-center py-4 space-y-2">
+          <p className="text-xs text-muted font-mono">No Yazio data synced yet</p>
           <button
-            onClick={save}
-            disabled={saving}
-            className="w-full mt-2 bg-accent/10 hover:bg-accent/20 text-accent text-xs font-mono py-2 rounded transition-colors"
+            onClick={onRefresh}
+            className="text-xs font-mono bg-accent/10 hover:bg-accent/20 text-accent px-3 py-1.5 rounded transition-colors"
           >
-            {saving ? 'Saving...' : 'Save Today\'s Nutrition'}
+            Pull now →
           </button>
         </div>
       )}
@@ -251,7 +226,8 @@ function RaceCountdown({ days }) {
 export default function Dashboard() {
   const [strava, setStrava]   = useState(null)
   const [garmin, setGarmin]   = useState(null)
-  const [loading, setLoading] = useState({ strava: true, garmin: true })
+  const [yazio, setYazio]     = useState(null)
+  const [loading, setLoading] = useState({ strava: true, garmin: true, yazio: true })
   const [error, setError]     = useState({})
   const [athlete, setAthlete] = useState(null)
   const [lastRefresh, setLastRefresh] = useState(null)
@@ -278,19 +254,44 @@ export default function Dashboard() {
     finally { setLoading(p => ({ ...p, garmin: false })) }
   }, [])
 
+  const fetchYazio = useCallback(async () => {
+    try {
+      const r = await fetch('/api/yazio')
+      const d = await r.json()
+      if (d.error) { setError(p => ({ ...p, yazio: d.error })); return }
+      setYazio(d.pending ? null : d)
+      setError(p => ({ ...p, yazio: null }))
+    } catch { setError(p => ({ ...p, yazio: 'fetch_error' })) }
+    finally { setLoading(p => ({ ...p, yazio: false })) }
+  }, [])
+
+  const refreshYazio = useCallback(async () => {
+    setLoading(p => ({ ...p, yazio: true }))
+    try {
+      const r = await fetch('/api/yazio/refresh', { method: 'POST' })
+      const d = await r.json()
+      if (d.error) { setError(p => ({ ...p, yazio: d.error })); return }
+      setYazio(d)
+      setError(p => ({ ...p, yazio: null }))
+    } catch { setError(p => ({ ...p, yazio: 'fetch_error' })) }
+    finally { setLoading(p => ({ ...p, yazio: false })) }
+  }, [])
+
   useEffect(() => {
     // Parse athlete cookie
     const match = document.cookie.match(/strava_athlete=([^;]+)/)
     if (match) try { setAthlete(JSON.parse(decodeURIComponent(match[1]))) } catch {}
     fetchStrava()
     fetchGarmin()
+    fetchYazio()
     setLastRefresh(new Date())
-  }, [fetchStrava, fetchGarmin])
+  }, [fetchStrava, fetchGarmin, fetchYazio])
 
   const handleRefresh = () => {
-    setLoading({ strava: true, garmin: true })
+    setLoading({ strava: true, garmin: true, yazio: true })
     fetchStrava()
     fetchGarmin()
+    refreshYazio()
     setLastRefresh(new Date())
   }
 
@@ -303,7 +304,7 @@ export default function Dashboard() {
   return (
     <>
       <Head>
-        <title>Fitness Tracker · Navjeet</title>
+        <title>Navjeet's Fitness Tracker</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏃</text></svg>" />
       </Head>
@@ -312,7 +313,7 @@ export default function Dashboard() {
         {/* Header */}
         <header className="border-b border-border px-4 py-3 flex items-center justify-between sticky top-0 bg-midnight/95 backdrop-blur z-10">
           <div className="flex items-center gap-3">
-            <span className="font-mono font-bold text-accent">⚡ FITNESS TRACKER</span>
+            <span className="font-mono font-bold text-accent">⚡ NAVJEET'S FITNESS TRACKER</span>
             {athlete && (
               <div className="flex items-center gap-2 border-l border-border pl-3">
                 {athlete.avatar && <img src={athlete.avatar} alt="" className="w-6 h-6 rounded-full" />}
@@ -515,7 +516,7 @@ export default function Dashboard() {
                 <p className="text-xs font-mono text-muted">No sleep data for today. Ensure Garmin synced.</p>
               )}
             </div>
-            <NutritionPanel />
+            <NutritionPanel data={yazio} loading={loading.yazio} error={error.yazio} onRefresh={refreshYazio} />
           </div>
 
           {/* Activity log */}
