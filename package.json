@@ -8,13 +8,14 @@
     "start": "next start"
   },
   "dependencies": {
+    "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.1",
     "axios": "^1.7.2",
     "clsx": "^2.1.1",
     "cookie": "^1.1.1",
     "dayjs": "^1.11.11",
     "garmin-connect": "^1.5.0",
-    "next": "14.2.5",
+    "next": "^14.2.35",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "recharts": "^2.12.7",

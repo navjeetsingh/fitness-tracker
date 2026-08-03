@@ -271,6 +271,7 @@ export default function Dashboard() {
     try {
       const r = await fetch('/api/yazio/refresh', { method: 'POST' })
       const d = await r.json()
+      if (r.status === 429) { setError(p => ({ ...p, yazio: 'Refreshed recently — try again in a few minutes' })); return }
       if (d.error) { setError(p => ({ ...p, yazio: d.error })); return }
       setYazio(d)
       setError(p => ({ ...p, yazio: null }))
