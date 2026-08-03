@@ -1,7 +1,8 @@
 // pages/api/yazio/refresh.js
-// Triggered by the dashboard's Refresh button: pulls today's summary live from Yazio.
+// Triggered by the dashboard's Refresh button (and its silent auto-refresh on load
+// when data is stale): pulls today's summary live from Yazio.
 // Rate-limited globally (not per-visitor) — see lib/ratelimit.js.
-import { pullAndStoreYazioSummary } from '../../../lib/yazio'
+import { pullAndStoreYazioSummary, getYazioWeekly } from '../../../lib/yazio'
 import { yazioRefreshLimiter } from '../../../lib/ratelimit'
 
 export default async function handler(req, res) {
@@ -13,8 +14,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    const summary = await pullAndStoreYazioSummary(new Date())
-    res.json(summary)
+    const today = await pullAndStoreYazioSummary(new Date())
+    const week = await getYazioWeekly()
+    res.json({ today, week })
   } catch (e) {
     res.status(500).json({ error: e.message })
   }

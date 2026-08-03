@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Head from 'next/head'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis,
@@ -36,6 +36,40 @@ const bbColor = (v) => {
   if (v >= 70) return '#4ADE80'
   if (v >= 45) return '#FBBF24'
   return '#EF4444'
+}
+const stressColor = (v) => {
+  if (v == null) return '#1F2937'
+  if (v < 25) return '#4ADE80'
+  if (v < 50) return '#FBBF24'
+  if (v < 75) return '#F97316'
+  return '#EF4444'
+}
+const MEAL_LABELS = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack' }
+
+// Decodes Strava's encoded polyline (Google's algorithm) into [lat, lng] pairs.
+function decodePolyline(str) {
+  let index = 0, lat = 0, lng = 0
+  const points = []
+  while (index < str.length) {
+    let shift = 0, result = 0, byte
+    do {
+      byte = str.charCodeAt(index++) - 63
+      result |= (byte & 0x1f) << shift
+      shift += 5
+    } while (byte >= 0x20)
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1)
+
+    shift = 0; result = 0
+    do {
+      byte = str.charCodeAt(index++) - 63
+      result |= (byte & 0x1f) << shift
+      shift += 5
+    } while (byte >= 0x20)
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1)
+
+    points.push([lat / 1e5, lng / 1e5])
+  }
+  return points
 }
 
 // ── Sub-components ────────────────────────────────────────────────
@@ -80,6 +114,7 @@ function HRVTrend({ week }) {
         <Tooltip
           contentStyle={{ background: '#111827', border: '1px solid #1F2937', borderRadius: 8, fontSize: 11 }}
           labelStyle={{ color: '#6B7280' }}
+          itemStyle={{ color: '#F9FAFB' }}
         />
         <ReferenceLine y={40} stroke="#1F2937" strokeDasharray="3 3" />
         <Line dataKey="hrv" stroke="#22D3EE" strokeWidth={2} dot={{ r: 3, fill: '#22D3EE' }} name="HRV avg" />
@@ -105,6 +140,7 @@ function BodyBatteryChart({ week }) {
         <Tooltip
           contentStyle={{ background: '#111827', border: '1px solid #1F2937', borderRadius: 8, fontSize: 11 }}
           labelStyle={{ color: '#6B7280' }}
+          itemStyle={{ color: '#F9FAFB' }}
         />
         <Bar dataKey="high" name="Peak BB" radius={[3, 3, 0, 0]}>
           {data.map((d, i) => <Cell key={i} fill={bbColor(d.high)} opacity={0.7} />)}
@@ -117,9 +153,68 @@ function BodyBatteryChart({ week }) {
   )
 }
 
-function ActivityRow({ act }) {
+function StressHourlyChart({ hourly, highlightHour }) {
+  if (!hourly) return <p className="text-muted text-xs font-mono">No hourly stress data yet</p>
+  const data = hourly.map(h => ({ hour: h.hour, value: h.value }))
   return (
-    <div className="flex items-center gap-3 py-3 border-b border-border last:border-0 hover:bg-white/[0.02] transition-colors px-2 -mx-2 rounded">
+    <ResponsiveContainer width="100%" height={100}>
+      <BarChart data={data} barGap={1}>
+        <XAxis
+          dataKey="hour"
+          tickFormatter={(h) => `${h}`}
+          tick={{ fontSize: 9, fill: '#6B7280', fontFamily: 'monospace' }}
+          axisLine={false} tickLine={false} interval={2}
+        />
+        <YAxis hide domain={[0, 100]} />
+        <Tooltip
+          contentStyle={{ background: '#111827', border: '1px solid #1F2937', borderRadius: 8, fontSize: 11 }}
+          labelStyle={{ color: '#6B7280' }}
+          itemStyle={{ color: '#F9FAFB' }}
+          formatter={(v) => [v ?? 'no data', 'Stress']}
+          labelFormatter={(h) => `${h}:00`}
+        />
+        {highlightHour != null && (
+          <ReferenceLine x={highlightHour} stroke="#22D3EE" strokeWidth={2} label={{ value: 'activity', position: 'top', fill: '#22D3EE', fontSize: 9 }} />
+        )}
+        <Bar dataKey="value" radius={[2, 2, 0, 0]}>
+          {data.map((d, i) => <Cell key={i} fill={stressColor(d.value)} />)}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
+function RouteSVG({ polyline }) {
+  const points = decodePolyline(polyline)
+  if (points.length < 2) return null
+
+  const lats = points.map(p => p[0]), lngs = points.map(p => p[1])
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats)
+  const minLng = Math.min(...lngs), maxLng = Math.max(...lngs)
+  const pad = 10, w = 400, h = 200
+  const scaleX = (maxLng - minLng) ? (w - pad * 2) / (maxLng - minLng) : 1
+  const scaleY = (maxLat - minLat) ? (h - pad * 2) / (maxLat - minLat) : 1
+  const scale = Math.min(scaleX, scaleY)
+
+  const path = points.map(([lat, lng], i) => {
+    const x = pad + (lng - minLng) * scale
+    const y = h - pad - (lat - minLat) * scale // flip Y (lat increases north = up)
+    return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-auto">
+      <path d={path} fill="none" stroke="#F97316" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function ActivityRow({ act, onClick }) {
+  return (
+    <div
+      onClick={onClick}
+      className="flex items-center gap-3 py-3 border-b border-border last:border-0 hover:bg-white/[0.02] transition-colors px-2 -mx-2 rounded cursor-pointer"
+    >
       <span className="text-lg w-6">{typeIcon(act.type)}</span>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
@@ -150,46 +245,308 @@ function ActivityRow({ act }) {
   )
 }
 
+function NutritionTrend({ week }) {
+  const data = (week || []).filter(d => d.total).map(d => ({
+    date: dayjs(d.date).format('ddd'),
+    protein: d.total.protein,
+  }))
+  if (!data.length) return <p className="text-muted text-xs font-mono">No weekly data yet</p>
+  return (
+    <ResponsiveContainer width="100%" height={80}>
+      <LineChart data={data}>
+        <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#6B7280', fontFamily: 'monospace' }} axisLine={false} tickLine={false} />
+        <YAxis hide domain={['auto', 'auto']} />
+        <Tooltip
+          contentStyle={{ background: '#111827', border: '1px solid #1F2937', borderRadius: 8, fontSize: 11 }}
+          labelStyle={{ color: '#6B7280' }}
+          itemStyle={{ color: '#F9FAFB' }}
+        />
+        <Line dataKey="protein" stroke="#4ADE80" strokeWidth={2} dot={{ r: 3, fill: '#4ADE80' }} name="Protein (g)" />
+      </LineChart>
+    </ResponsiveContainer>
+  )
+}
+
 function NutritionPanel({ data, loading, error, onRefresh }) {
-  const proteinPct = data ? Math.min(100, (data.protein / data.proteinTarget) * 100) : 0
+  const today = data?.today
+  const week  = data?.week
+  const proteinPct = today ? Math.min(100, (today.total.protein / today.proteinTarget) * 100) : 0
 
   return (
     <div className="stat-card">
-      <span className="section-title">🌱 Nutrition (Yazio)</span>
+      <span className="section-title">🌱 Nutrition</span>
       {loading ? (
-        <span className="text-xs text-muted font-mono animate-pulse">Loading Yazio data...</span>
+        <span className="text-xs text-muted font-mono animate-pulse">Loading nutrition data...</span>
       ) : error ? (
         <p className="text-xs font-mono text-warn">⚠ {error}</p>
-      ) : data ? (
+      ) : today ? (
         <div className="space-y-3">
           <div className="flex justify-between items-baseline">
             <span className="text-xs font-mono text-muted">Protein</span>
-            <span className="font-mono font-bold" style={{ color: data.proteinStatus === 'on_target' ? '#4ADE80' : data.proteinStatus === 'close' ? '#FBBF24' : '#EF4444' }}>
-              {data.protein}g / {data.proteinTarget}g
+            <span className="font-mono font-bold" style={{ color: today.proteinStatus === 'on_target' ? '#4ADE80' : today.proteinStatus === 'close' ? '#FBBF24' : '#EF4444' }}>
+              {today.total.protein}g / {today.proteinTarget}g
             </span>
           </div>
           <div className="h-2 bg-border rounded-full overflow-hidden">
             <div className="h-full rounded-full bg-good transition-all" style={{ width: `${proteinPct}%` }} />
           </div>
           <div className="grid grid-cols-3 gap-2 pt-1">
-            <div className="text-center"><p className="text-xs text-muted font-mono">Calories</p><p className="text-sm font-mono font-bold">{data.calories}</p></div>
-            <div className="text-center"><p className="text-xs text-muted font-mono">Carbs</p><p className="text-sm font-mono font-bold">{data.carbs}g</p></div>
-            <div className="text-center"><p className="text-xs text-muted font-mono">Fat</p><p className="text-sm font-mono font-bold">{data.fat}g</p></div>
+            <div className="text-center"><p className="text-xs text-muted font-mono">Calories</p><p className="text-sm font-mono font-bold">{today.total.calories}</p></div>
+            <div className="text-center"><p className="text-xs text-muted font-mono">Carbs</p><p className="text-sm font-mono font-bold">{today.total.carbs}g</p></div>
+            <div className="text-center"><p className="text-xs text-muted font-mono">Fat</p><p className="text-sm font-mono font-bold">{today.total.fat}g</p></div>
           </div>
-          {data.proteinGap > 0 && (
-            <p className="text-xs font-mono text-warn">⚠ {data.proteinGap}g protein still needed today</p>
+          {today.proteinGap > 0 && (
+            <p className="text-xs font-mono text-warn">⚠ {today.proteinGap}g protein still needed today</p>
           )}
-          <p className="text-xs font-mono text-muted">Synced {dayjs(data.fetchedAt).format('HH:mm')}</p>
+          <div className="pt-2 border-t border-border space-y-1.5">
+            {Object.entries(MEAL_LABELS).map(([key, label]) => (
+              <div key={key} className="flex justify-between items-baseline">
+                <span className="text-xs font-mono text-muted">{label}</span>
+                <span className="text-xs font-mono">{today.meals[key].calories} kcal · {today.meals[key].protein}g protein</span>
+              </div>
+            ))}
+          </div>
+          <div className="pt-2 border-t border-border">
+            <span className="text-xs font-mono text-muted uppercase tracking-widest">Protein — 7 Days</span>
+            <NutritionTrend week={week} />
+          </div>
+          <p className="text-xs font-mono text-muted">Synced {dayjs(today.fetchedAt).format('HH:mm')}</p>
         </div>
       ) : (
         <div className="text-center py-4 space-y-2">
-          <p className="text-xs text-muted font-mono">No Yazio data synced yet</p>
+          <p className="text-xs text-muted font-mono">No nutrition data synced yet</p>
           <button
             onClick={onRefresh}
             className="text-xs font-mono bg-accent/10 hover:bg-accent/20 text-accent px-3 py-1.5 rounded transition-colors"
           >
             Pull now →
           </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MuscleGroupBreakdown({ muscleGroups }) {
+  if (!muscleGroups?.breakdown?.length) return <p className="text-xs font-mono text-muted">Not classified yet</p>
+  const maxSets = Math.max(...muscleGroups.breakdown.map(g => g.sets))
+  return (
+    <div className="space-y-2">
+      {muscleGroups.breakdown.map(g => (
+        <div key={g.group} className="flex items-center gap-3">
+          <span className="text-xs font-mono text-muted w-28 truncate">{g.group}</span>
+          <div className="flex-1 h-2 bg-border rounded-full overflow-hidden">
+            <div className="h-full rounded-full bg-accent" style={{ width: `${(g.sets / maxSets) * 100}%` }} />
+          </div>
+          <span className="text-xs font-mono text-muted w-14 text-right">{g.sets} sets</span>
+        </div>
+      ))}
+      {muscleGroups.unclassifiedSets > 0 && (
+        <p className="text-xs font-mono text-muted">+ {muscleGroups.unclassifiedSets} unclassified — will update once named in Garmin</p>
+      )}
+    </div>
+  )
+}
+
+function ActivityDetailModal({ activityId, onClose }) {
+  const [detail, setDetail]   = useState(null)
+  const [error, setError]     = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true); setDetail(null); setError(null)
+    fetch(`/api/activity/${activityId}`)
+      .then(r => r.json())
+      .then(d => { if (cancelled) return; d.error ? setError(d.error) : setDetail(d) })
+      .catch(() => { if (!cancelled) setError('fetch_error') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [activityId])
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const activity = detail?.activity
+  const day = detail?.day
+  const isRun = activity?.type === 'Run'
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto"
+      onClick={onClose}
+    >
+      <div className="stat-card w-full max-w-2xl my-8" onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between mb-2 gap-3">
+          <span className="section-title mb-0">{activity?.name || 'Activity'}</span>
+          <button onClick={onClose} className="text-muted hover:text-white text-lg leading-none flex-shrink-0">✕</button>
+        </div>
+
+        {loading && <div className="py-8 text-center text-xs font-mono text-muted animate-pulse">Loading activity...</div>}
+        {error && <p className="text-xs font-mono text-warn">⚠ {error}</p>}
+
+        {activity && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="text-xs font-mono text-muted">{dayjs(activity.date).format('ddd DD MMM, HH:mm')}</span>
+              {activity.tags.map(tag => (
+                <span key={tag} className="pill bg-accent/10 text-accent">#{tag}</span>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+              <div><p className="metric-label">Distance</p><p className="metric-value text-base">{activity.distance}km</p></div>
+              <div><p className="metric-label">Duration</p><p className="metric-value text-base">{fmtDur(activity.duration)}</p></div>
+              {activity.pace && <div><p className="metric-label">Pace</p><p className="metric-value text-base">{fmtPace(activity.pace)}</p></div>}
+              {activity.avgHR && (
+                <div><p className="metric-label">Avg HR</p><p className="metric-value text-base" style={{ color: hrColor(activity.avgHR) }}>{activity.avgHR}</p></div>
+              )}
+              {activity.calories > 0 && <div><p className="metric-label">Calories</p><p className="metric-value text-base">{activity.calories}</p></div>}
+              {activity.elevation > 0 && <div><p className="metric-label">Elevation</p><p className="metric-value text-base">{activity.elevation}m</p></div>}
+            </div>
+
+            {activity.description && (
+              <p className="text-xs font-mono text-muted whitespace-pre-line">{activity.description}</p>
+            )}
+
+            {activity.photos.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto">
+                {activity.photos.map((url, i) => (
+                  <img key={i} src={url} alt="" className="h-28 rounded-lg object-cover flex-shrink-0" />
+                ))}
+              </div>
+            )}
+
+            {isRun && activity.polyline && (
+              <div>
+                <span className="section-title">Route</span>
+                <RouteSVG polyline={activity.polyline} />
+              </div>
+            )}
+
+            {isRun && activity.gear && (
+              <div className="flex justify-between items-baseline pt-2 border-t border-border">
+                <span className="text-xs font-mono text-muted">👟 {activity.gear.name}</span>
+                <span className="text-xs font-mono">{activity.gear.distanceKm}km total</span>
+              </div>
+            )}
+
+            {day?.garmin?.muscleGroups && (
+              <div className="pt-2 border-t border-border">
+                <span className="section-title">Muscle Groups</span>
+                <MuscleGroupBreakdown muscleGroups={day.garmin.muscleGroups} />
+              </div>
+            )}
+
+            {(day?.garmin || day?.yazio) && (
+              <div className="pt-2 border-t border-border">
+                <span className="section-title">That Day</span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div><p className="metric-label">Sleep</p><p className="text-sm font-mono font-bold">{day.garmin?.sleep?.hours ? `${day.garmin.sleep.hours}h` : '—'}</p></div>
+                  <div><p className="metric-label">HRV</p><p className="text-sm font-mono font-bold">{day.garmin?.hrvAvg ? `${day.garmin.hrvAvg}ms` : '—'}</p></div>
+                  <div><p className="metric-label">Body Battery</p><p className="text-sm font-mono font-bold">{day.garmin?.bodyBattery?.current ?? '—'}</p></div>
+                  <div><p className="metric-label">Protein</p><p className="text-sm font-mono font-bold">{day.yazio?.total?.protein ? `${day.yazio.total.protein}g` : '—'}</p></div>
+                </div>
+                {day?.garmin?.stressHourly && (
+                  <div className="mt-3">
+                    <span className="text-xs font-mono text-muted uppercase tracking-widest">Stress that day — cyan line marks this activity</span>
+                    <StressHourlyChart hourly={day.garmin.stressHourly} highlightHour={new Date(activity.date).getUTCHours()} />
+                  </div>
+                )}
+                {!day?.garmin && <p className="text-xs font-mono text-muted mt-1">No cached Garmin data for this day (outside the 7-day window)</p>}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Social follow dropdown ─────────────────────────────────────────
+// Stylized marks (not exact brand logos) to stay visually recognizable while
+// keeping the SVGs simple and license-free.
+function StravaIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+      <path d="M13.5 2 6 15h4.5L9 22l8.5-13h-4.5z" />
+    </svg>
+  )
+}
+function AdidasIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+      <path d="M2 20 8 6h2L5 20z" />
+      <path d="M9 20 15 4h2l-5 16z" />
+      <path d="M16 20 20 9h2l-3 11z" />
+    </svg>
+  )
+}
+function GarminIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+      <path d="M12 4 20 20H4z" />
+      <path d="M12 4 16 12h-4z" opacity="0.4" />
+    </svg>
+  )
+}
+
+const SOCIAL_LINKS = [
+  { name: 'Strava', href: 'https://www.strava.com/athletes/144761491', Icon: StravaIcon, color: '#FC4C02' },
+  { name: 'Adidas Running', href: 'https://www.runtastic.com/user/266K80YE43JKCA4V', Icon: AdidasIcon, color: '#F9FAFB' },
+  { name: 'Garmin', href: 'https://connect.garmin.com/app/profile/b101f0be-080f-4b61-aed1-b1c4a4f673d2', Icon: GarminIcon, color: '#007CC3' },
+]
+
+function SocialDropdown() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onClick)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onClick)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        aria-label="Follow me"
+        aria-expanded={open}
+        className="text-muted hover:text-white transition-colors border border-border p-1.5 rounded flex items-center"
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="18" cy="5" r="3" />
+          <circle cx="6" cy="12" r="3" />
+          <circle cx="18" cy="19" r="3" />
+          <line x1="8.6" y1="10.5" x2="15.4" y2="6.5" />
+          <line x1="8.6" y1="13.5" x2="15.4" y2="17.5" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute left-0 mt-2 bg-panel border border-border rounded-lg p-2 flex gap-1 z-20 whitespace-nowrap">
+          {SOCIAL_LINKS.map(({ name, href, Icon, color }) => (
+            <a
+              key={name}
+              href={href}
+              target="_blank"
+              rel="noreferrer"
+              title={`Follow me on ${name}`}
+              className="p-2 rounded hover:bg-white/5 transition-colors"
+              style={{ color }}
+            >
+              <Icon />
+            </a>
+          ))}
         </div>
       )}
     </div>
@@ -231,6 +588,7 @@ export default function Dashboard() {
   const [error, setError]     = useState({})
   const [athlete, setAthlete] = useState(null)
   const [lastRefresh, setLastRefresh] = useState(null)
+  const [selectedActivityId, setSelectedActivityId] = useState(null)
 
   const fetchStrava = useCallback(async () => {
     try {
@@ -259,32 +617,46 @@ export default function Dashboard() {
     try {
       const r = await fetch('/api/yazio')
       const d = await r.json()
-      if (d.error) { setError(p => ({ ...p, yazio: d.error })); return }
-      setYazio(d.pending ? null : d)
+      if (d.error) { setError(p => ({ ...p, yazio: d.error })); return d }
+      setYazio(d)
       setError(p => ({ ...p, yazio: null }))
-    } catch { setError(p => ({ ...p, yazio: 'fetch_error' })) }
+      return d
+    } catch { setError(p => ({ ...p, yazio: 'fetch_error' })); return null }
     finally { setLoading(p => ({ ...p, yazio: false })) }
   }, [])
 
-  const refreshYazio = useCallback(async () => {
-    setLoading(p => ({ ...p, yazio: true }))
+  // silent=true suppresses the loading/error UI — used for the background
+  // auto-refresh-on-visit below, so a stale-data check never flickers the panel.
+  const refreshYazio = useCallback(async (silent = false) => {
+    if (!silent) setLoading(p => ({ ...p, yazio: true }))
     try {
       const r = await fetch('/api/yazio/refresh', { method: 'POST' })
       const d = await r.json()
-      if (r.status === 429) { setError(p => ({ ...p, yazio: 'Refreshed recently — try again in a few minutes' })); return }
-      if (d.error) { setError(p => ({ ...p, yazio: d.error })); return }
+      if (r.status === 429) {
+        if (!silent) setError(p => ({ ...p, yazio: 'Refreshed recently — try again in a few minutes' }))
+        return
+      }
+      if (d.error) { if (!silent) setError(p => ({ ...p, yazio: d.error })); return }
       setYazio(d)
       setError(p => ({ ...p, yazio: null }))
-    } catch { setError(p => ({ ...p, yazio: 'fetch_error' })) }
-    finally { setLoading(p => ({ ...p, yazio: false })) }
+    } catch { if (!silent) setError(p => ({ ...p, yazio: 'fetch_error' })) }
+    finally { if (!silent) setLoading(p => ({ ...p, yazio: false })) }
   }, [])
 
   useEffect(() => {
     fetchStrava()
     fetchGarmin()
-    fetchYazio()
+    fetchYazio().then(d => {
+      // Auto-pull fresh nutrition data if it's been >2hrs since the last sync
+      // (covers the morning/midday/evening checkpoints without needing paid cron).
+      const staleMs = 2 * 60 * 60 * 1000
+      const fetchedAt = d?.today?.fetchedAt
+      if (!fetchedAt || Date.now() - new Date(fetchedAt).getTime() > staleMs) {
+        refreshYazio(true)
+      }
+    })
     setLastRefresh(new Date())
-  }, [fetchStrava, fetchGarmin, fetchYazio])
+  }, [fetchStrava, fetchGarmin, fetchYazio, refreshYazio])
 
   const handleRefresh = () => {
     setLoading({ strava: true, garmin: true, yazio: true })
@@ -310,8 +682,8 @@ export default function Dashboard() {
 
       <div className="min-h-screen bg-midnight text-white">
         {/* Header */}
-        <header className="border-b border-border px-4 py-3 flex items-center justify-between sticky top-0 bg-midnight/95 backdrop-blur z-10">
-          <div className="flex items-center gap-3">
+        <header className="border-b border-border px-4 py-3 flex items-center justify-between flex-wrap gap-y-2 sticky top-0 bg-midnight/95 backdrop-blur z-10">
+          <div className="flex items-center gap-3 flex-wrap">
             <span className="font-mono font-bold text-accent">⚡ NAVJEET'S FITNESS TRACKER</span>
             {athlete && (
               <div className="flex items-center gap-2 border-l border-border pl-3">
@@ -320,7 +692,8 @@ export default function Dashboard() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <SocialDropdown />
             {lastRefresh && (
               <span className="text-xs font-mono text-muted hidden sm:block">
                 Updated {dayjs(lastRefresh).format('HH:mm')}
@@ -476,6 +849,24 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {/* Stress — hourly, today */}
+          <div className="stat-card">
+            <span className="section-title">Stress — Today (Hourly)</span>
+            {loading.garmin ? (
+              <div className="h-24 flex items-center justify-center">
+                <span className="text-xs text-muted font-mono animate-pulse">Loading Garmin data...</span>
+              </div>
+            ) : (
+              <StressHourlyChart hourly={today?.stressHourly} />
+            )}
+            <p className="text-xs font-mono text-muted mt-2">
+              <span className="text-good">■ &lt;25 rest</span> &nbsp;
+              <span className="text-warn">■ 25–49 low</span> &nbsp;
+              <span style={{ color: '#F97316' }}>■ 50–74 medium</span> &nbsp;
+              <span className="text-pulse">■ 75+ high</span>
+            </p>
+          </div>
+
           {/* Sleep detail + Nutrition */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="stat-card">
@@ -521,7 +912,9 @@ export default function Dashboard() {
               </div>
             ) : strava?.activities?.length ? (
               <div>
-                {strava.activities.map(a => <ActivityRow key={a.id} act={a} />)}
+                {strava.activities.map(a => (
+                  <ActivityRow key={a.id} act={a} onClick={() => setSelectedActivityId(a.id)} />
+                ))}
               </div>
             ) : (
               <p className="text-xs font-mono text-muted">No activities in last 14 days</p>
@@ -561,13 +954,14 @@ export default function Dashboard() {
 
           {/* Footer */}
           <footer className="text-center py-4 border-t border-border">
-            <p className="text-xs font-mono text-muted">
-              Fitness Tracker · Strava · Garmin · Yazio &nbsp;·&nbsp;
-              <a href="https://claude.ai" target="_blank" rel="noreferrer" className="text-accent hover:underline">Ask Claude →</a>
-            </p>
+            <p className="text-xs font-mono text-muted">Fitness Tracker</p>
           </footer>
         </main>
       </div>
+
+      {selectedActivityId && (
+        <ActivityDetailModal activityId={selectedActivityId} onClose={() => setSelectedActivityId(null)} />
+      )}
     </>
   )
 }
