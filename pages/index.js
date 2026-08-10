@@ -466,6 +466,187 @@ function ActivityDetailModal({ activityId, onClose }) {
   )
 }
 
+// ── Personal records ────────────────────────────────────────────────
+const RECORD_LABELS = {
+  longestRun: 'Longest Run',
+  fastest1K: 'Fastest 1K',
+  fastest5K: 'Fastest 5K',
+  fastest10K: 'Fastest 10K',
+  fastestHalfMarathon: 'Fastest Half Marathon',
+  fastestMarathon: 'Fastest Full Marathon',
+}
+const RECORD_ORDER = ['longestRun', 'fastest1K', 'fastest5K', 'fastest10K', 'fastestHalfMarathon', 'fastestMarathon']
+
+function RecordCard({ recordKey, record, onClick }) {
+  const label = RECORD_LABELS[recordKey]
+  const empty = !record
+  const value = recordKey === 'longestRun' ? `${record?.distanceKm}km` : record?.time
+  const sub = recordKey === 'longestRun' ? (record ? dayjs(record.date).format('DD MMM YYYY') : 'No data yet') : (record ? record.pace : 'No data yet')
+
+  return (
+    <button
+      onClick={() => !empty && onClick(recordKey)}
+      disabled={empty}
+      className={`text-left w-full min-w-0 bg-panel border border-border rounded-lg p-3 ${empty ? 'opacity-40 cursor-default' : 'hover:border-accent/40 transition-colors cursor-pointer'}`}
+    >
+      <p className="metric-label truncate">{label}</p>
+      <p className="metric-value text-base truncate">{empty ? '—' : value}</p>
+      <p className="text-xs font-mono text-muted mt-1 truncate">{sub}</p>
+    </button>
+  )
+}
+
+function RecordDetailModal({ recordKey, record, onClose, onViewActivity }) {
+  const label = RECORD_LABELS[recordKey]
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="stat-card w-full max-w-sm" onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between mb-3 gap-3">
+          <span className="section-title mb-0">{label}</span>
+          <button onClick={onClose} className="text-muted hover:text-white text-lg leading-none flex-shrink-0">✕</button>
+        </div>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          {recordKey === 'longestRun' ? (
+            <div><p className="metric-label">Distance</p><p className="metric-value text-base">{record.distanceKm}km</p></div>
+          ) : (
+            <>
+              <div><p className="metric-label">Time</p><p className="metric-value text-base">{record.time}</p></div>
+              <div><p className="metric-label">Pace</p><p className="metric-value text-base">{record.pace}</p></div>
+            </>
+          )}
+        </div>
+        <p className="text-xs font-mono text-muted">{record.name}</p>
+        <p className="text-xs font-mono text-muted">{dayjs(record.date).format('ddd DD MMM YYYY')}</p>
+        {record.stravaActivityId ? (
+          <button
+            onClick={() => onViewActivity(record.stravaActivityId)}
+            className="mt-3 text-xs font-mono text-accent hover:underline"
+          >
+            View full activity →
+          </button>
+        ) : (
+          <p className="mt-3 text-xs font-mono text-muted">No matching Strava activity found for this record.</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function PersonalRecordsSection({ records, loading, onSelectRecord }) {
+  return (
+    <div className="stat-card">
+      <span className="section-title">Personal Records</span>
+      {loading ? (
+        <div className="h-24 flex items-center justify-center">
+          <span className="text-xs text-muted font-mono animate-pulse">Loading Garmin records...</span>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {RECORD_ORDER.map(key => (
+              <RecordCard key={key} recordKey={key} record={records?.[key]} onClick={onSelectRecord} />
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-border">
+            <div>
+              <p className="metric-label">VO2 Max</p>
+              <p className="metric-value text-base">{records?.vo2max ?? '—'}</p>
+            </div>
+            <div>
+              <p className="metric-label">Fitness Age vs Actual</p>
+              <p className="metric-value text-base">
+                {records?.fitnessAge ? (
+                  <>
+                    {records.fitnessAge.fitness}
+                    <span className="text-muted text-sm"> vs {records.fitnessAge.chronological}</span>
+                  </>
+                ) : '—'}
+              </p>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Badges / achievements ───────────────────────────────────────────
+function BadgeCard({ badge, highlight, onClick }) {
+  return (
+    <button
+      onClick={() => onClick(badge)}
+      className={`text-left p-3 rounded-lg border transition-colors hover:border-accent/40 ${
+        highlight ? 'border-accent/30 bg-accent/5' : 'border-border bg-panel'
+      }`}
+    >
+      <span className="text-xl">🏅</span>
+      <p className="text-xs font-mono mt-1 leading-snug">{badge.name}</p>
+      <p className="text-xs font-mono text-muted mt-0.5">{dayjs(badge.earnedDate).format('DD MMM YYYY')}</p>
+    </button>
+  )
+}
+
+function BadgeDetailModal({ badge, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="stat-card w-full max-w-sm text-center" onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between mb-3 gap-3">
+          <span className="section-title mb-0">Badge</span>
+          <button onClick={onClose} className="text-muted hover:text-white text-lg leading-none flex-shrink-0">✕</button>
+        </div>
+        <span className="text-4xl">🏅</span>
+        <p className="font-mono font-bold mt-2">{badge.name}</p>
+        <p className="text-xs font-mono text-muted mt-1">Earned {dayjs(badge.earnedDate).format('ddd DD MMM YYYY')}</p>
+        <p className="text-xs font-mono text-accent mt-1">{badge.points} pt{badge.points === 1 ? '' : 's'}</p>
+      </div>
+    </div>
+  )
+}
+
+function BadgesSection({ badges, loading, onSelectBadge }) {
+  const [showAll, setShowAll] = useState(false)
+  const latest = badges?.slice(0, 6) || []
+  const rest = badges?.slice(6) || []
+
+  return (
+    <div className="stat-card">
+      <div className="flex items-center justify-between mb-1">
+        <span className="section-title mb-0">Achievements — Garmin Badges</span>
+        {badges?.length > 0 && <span className="text-xs font-mono text-muted">{badges.length} total</span>}
+      </div>
+      {loading ? (
+        <div className="h-24 flex items-center justify-center">
+          <span className="text-xs text-muted font-mono animate-pulse">Loading badges...</span>
+        </div>
+      ) : !badges?.length ? (
+        <p className="text-xs font-mono text-muted py-4">No badges found.</p>
+      ) : (
+        <>
+          <p className="text-xs font-mono text-muted mb-2">Latest 6</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {latest.map(b => <BadgeCard key={b.id} badge={b} highlight onClick={onSelectBadge} />)}
+          </div>
+          {rest.length > 0 && (
+            <>
+              <button
+                onClick={() => setShowAll(s => !s)}
+                className="text-xs font-mono text-muted hover:text-white mt-3"
+              >
+                {showAll ? '▴ Hide' : `▾ Show all (${rest.length} more)`}
+              </button>
+              {showAll && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+                  {rest.map(b => <BadgeCard key={b.id} badge={b} onClick={onSelectBadge} />)}
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Social follow dropdown ─────────────────────────────────────────
 // Real brand marks. Strava's is inherently two-tone, so it keeps its own fills;
 // Adidas/Garmin use currentColor so SOCIAL_LINKS' per-brand `color` still applies.
@@ -589,6 +770,8 @@ export default function Dashboard() {
   const [athlete, setAthlete] = useState(null)
   const [lastRefresh, setLastRefresh] = useState(null)
   const [selectedActivityId, setSelectedActivityId] = useState(null)
+  const [selectedRecordKey, setSelectedRecordKey] = useState(null)
+  const [selectedBadge, setSelectedBadge] = useState(null)
 
   const fetchStrava = useCallback(async () => {
     try {
@@ -816,6 +999,10 @@ export default function Dashboard() {
             </div>
           )}
 
+          {/* Personal records + achievements */}
+          <PersonalRecordsSection records={garmin?.records} loading={loading.garmin} onSelectRecord={setSelectedRecordKey} />
+          <BadgesSection badges={garmin?.records?.badges} loading={loading.garmin} onSelectBadge={setSelectedBadge} />
+
           {/* Charts row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="stat-card">
@@ -961,6 +1148,17 @@ export default function Dashboard() {
 
       {selectedActivityId && (
         <ActivityDetailModal activityId={selectedActivityId} onClose={() => setSelectedActivityId(null)} />
+      )}
+      {selectedRecordKey && garmin?.records?.[selectedRecordKey] && (
+        <RecordDetailModal
+          recordKey={selectedRecordKey}
+          record={garmin.records[selectedRecordKey]}
+          onClose={() => setSelectedRecordKey(null)}
+          onViewActivity={(id) => { setSelectedRecordKey(null); setSelectedActivityId(id) }}
+        />
+      )}
+      {selectedBadge && (
+        <BadgeDetailModal badge={selectedBadge} onClose={() => setSelectedBadge(null)} />
       )}
     </>
   )
