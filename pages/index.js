@@ -467,29 +467,29 @@ function ActivityDetailModal({ activityId, onClose }) {
 }
 
 // ── Social follow dropdown ─────────────────────────────────────────
-// Stylized marks (not exact brand logos) to stay visually recognizable while
-// keeping the SVGs simple and license-free.
+// Real brand marks. Strava's is inherently two-tone, so it keeps its own fills;
+// Adidas/Garmin use currentColor so SOCIAL_LINKS' per-brand `color` still applies.
 function StravaIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-      <path d="M13.5 2 6 15h4.5L9 22l8.5-13h-4.5z" />
+    <svg viewBox="90.15 26 331.7 460" width="18" height="18">
+      <polygon points="226.172,26.001 90.149,288.345 170.29,288.345 226.172,184.036 281.605,288.345 361.116,288.345" fill="#FF5500" />
+      <polygon points="361.116,288.345 321.675,367.586 281.605,288.345 220.871,288.345 321.675,485.999 421.851,288.345" fill="#FFAF8A" />
     </svg>
   )
 }
 function AdidasIcon() {
   return (
     <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-      <path d="M2 20 8 6h2L5 20z" />
-      <path d="M9 20 15 4h2l-5 16z" />
-      <path d="M16 20 20 9h2l-3 11z" />
+      <path d="M1.3294 19L0.731323 17.9641L5.06145 15.4641L7.1029 19H1.3294Z" />
+      <path d="M15.1858 19H9.4123L5.7935 12.7321L10.1236 10.2321L15.1858 19Z" />
+      <path d="M23.2687 19H17.4952L10.8557 7.5L15.1858 5L23.2687 19Z" />
     </svg>
   )
 }
 function GarminIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-      <path d="M12 4 20 20H4z" />
-      <path d="M12 4 16 12h-4z" opacity="0.4" />
+    <svg viewBox="0 0 32 32" width="18" height="18" fill="currentColor">
+      <path d="M29.355 30.229h-26.709c-1.025 0-1.848-0.516-2.26-1.339-0.516-0.812-0.516-1.855 0-2.672l13.355-23.115c0.511-0.817 1.333-1.333 2.26-1.333 1.027 0 1.849 0.516 2.251 1.333l13.364 23.115c0.516 0.823 0.516 1.855 0 2.672-0.417 0.927-1.24 1.339-2.26 1.339z" />
     </svg>
   )
 }
