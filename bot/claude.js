@@ -3,12 +3,14 @@
 // `claude setup-token` — rather than a separately-billed Anthropic API key). Each
 // Discord DM thread gets its own Claude session ID so the CLI's own conversation
 // history carries context across messages, without us re-sending prior turns.
+// The coaching persona itself lives in ./CLAUDE.md (auto-discovered by the CLI from
+// its cwd, which pm2 sets to this directory — see ATHLETE_PROFILE.md alongside it),
+// not passed here — no --append-system-prompt needed.
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { redis } from '../lib/redis.js'
-import { SYSTEM_PROMPT } from './systemPrompt.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const MCP_SERVER_PATH = path.join(__dirname, 'mcp-server.js')
@@ -40,7 +42,6 @@ export async function askClaude(discordUserId, message) {
     '--tools', '',
     '--mcp-config', MCP_CONFIG,
     '--allowedTools', 'mcp__fitness-tracker__*',
-    '--append-system-prompt', SYSTEM_PROMPT,
     existingSessionId ? '--resume' : '--session-id', sessionId,
   ]
 

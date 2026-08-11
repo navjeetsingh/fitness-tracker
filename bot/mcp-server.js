@@ -5,7 +5,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
-import { getGarminData, getGarminHistoricalRange } from '../lib/garmin.js'
+import { getGarminData, getGarminHistoricalRange, getGarminUpcomingWorkouts, getGarminWorkoutDetail } from '../lib/garmin.js'
 import { fetchStravaData, getStravaActivitiesInRange, getStravaActivityDetail } from '../lib/strava.js'
 import { getYazioWeekly, getYazioHistoricalRange } from '../lib/yazio.js'
 
@@ -82,6 +82,32 @@ server.registerTool(
     inputSchema: { startDate: dateArg, endDate: dateArg },
   },
   async ({ startDate, endDate }) => json(await getYazioHistoricalRange(startDate, endDate))
+)
+
+server.registerTool(
+  'get_upcoming_workouts',
+  {
+    title: 'Scheduled Runna sessions and race events',
+    description:
+      "Titles and dates of the athlete's scheduled Runna training sessions and any calendar race events, pulled " +
+      'from Garmin (Runna syncs its plan into Garmin Connect — this is the plan, read-only). Use this to know what ' +
+      "is coming up next, not to invent or replace the plan. Returns a workoutId per session for get_workout_detail.",
+    inputSchema: { days: z.number().int().min(1).max(60).optional() },
+  },
+  async ({ days }) => json(await getGarminUpcomingWorkouts(days))
+)
+
+server.registerTool(
+  'get_workout_detail',
+  {
+    title: 'Full structure of one planned workout',
+    description:
+      'Target paces/HR zones per step for a single planned Runna session (from a workoutId returned by ' +
+      'get_upcoming_workouts) — e.g. "10km at a conversational pace" or specific interval targets. Use this to ' +
+      'compare what a session actually asked for against what was run.',
+    inputSchema: { workoutId: z.union([z.string(), z.number()]) },
+  },
+  async ({ workoutId }) => json(await getGarminWorkoutDetail(workoutId))
 )
 
 await server.connect(new StdioServerTransport())
