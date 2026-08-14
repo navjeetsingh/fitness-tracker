@@ -2,10 +2,15 @@
 // for the Discord bot's `claude -p` subprocess (see bot/claude.js). Loaded via
 // --mcp-config so Claude can pull whatever date range or data type a given question
 // actually needs, instead of the bot guessing from regex over the user's message.
+//
+// Garmin calls are proxied through the Vercel-hosted /api/bot/* routes instead of
+// running the unofficial Garmin client directly on this VM — Garmin's anti-bot system
+// has repeatedly flagged this VM's IP as suspicious datacenter traffic, while Vercel's
+// IP has never been flagged despite the same app hitting Garmin from it constantly.
+// Strava/Yazio don't have this problem, so those stay as direct lib calls.
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
-import { getGarminData, getGarminHistoricalRange, getGarminUpcomingWorkouts, getGarminWorkoutDetail } from '../lib/garmin.js'
 import { fetchStravaData, getStravaActivitiesInRange, getStravaActivityDetail } from '../lib/strava.js'
 import { getYazioWeekly, getYazioHistoricalRange } from '../lib/yazio.js'
 
@@ -13,6 +18,18 @@ const server = new McpServer({ name: 'fitness-tracker', version: '1.0.0' })
 
 const dateArg = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD')
 const json = (data) => ({ content: [{ type: 'text', text: JSON.stringify(data) }] })
+
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL
+const BOT_API_SECRET = process.env.BOT_API_SECRET
+
+async function fetchGarminApi(path) {
+  const r = await fetch(`${BASE_URL}${path}`, {
+    headers: path.startsWith('/api/bot/') ? { Authorization: `Bearer ${BOT_API_SECRET}` } : {},
+  })
+  const data = await r.json()
+  if (!r.ok) throw new Error(data.error || `Garmin API request failed: ${r.status}`)
+  return data
+}
 
 server.registerTool(
   'get_recent_snapshot',
@@ -26,7 +43,7 @@ server.registerTool(
   },
   async () => {
     const [garmin, strava, yazio] = await Promise.all([
-      getGarminData().catch((e) => ({ error: e.message })),
+      fetchGarminApi('/api/garmin').catch((e) => ({ error: e.message })),
       fetchStravaData().catch((e) => ({ error: e.message })),
       getYazioWeekly().catch((e) => ({ error: e.message })),
     ])
@@ -44,7 +61,7 @@ server.registerTool(
       'login for any day not already cached, so prefer the narrowest range that answers the question.',
     inputSchema: { startDate: dateArg, endDate: dateArg },
   },
-  async ({ startDate, endDate }) => json(await getGarminHistoricalRange(startDate, endDate))
+  async ({ startDate, endDate }) => json(await fetchGarminApi(`/api/bot/garmin-range?startDate=${startDate}&endDate=${endDate}`))
 )
 
 server.registerTool(
@@ -94,7 +111,7 @@ server.registerTool(
       "is coming up next, not to invent or replace the plan. Returns a workoutId per session for get_workout_detail.",
     inputSchema: { days: z.number().int().min(1).max(60).optional() },
   },
-  async ({ days }) => json(await getGarminUpcomingWorkouts(days))
+  async ({ days }) => json(await fetchGarminApi(`/api/bot/garmin-workouts${days ? `?days=${days}` : ''}`))
 )
 
 server.registerTool(
@@ -107,7 +124,7 @@ server.registerTool(
       'compare what a session actually asked for against what was run.',
     inputSchema: { workoutId: z.union([z.string(), z.number()]) },
   },
-  async ({ workoutId }) => json(await getGarminWorkoutDetail(workoutId))
+  async ({ workoutId }) => json(await fetchGarminApi(`/api/bot/garmin-workout-detail?workoutId=${workoutId}`))
 )
 
 await server.connect(new StdioServerTransport())

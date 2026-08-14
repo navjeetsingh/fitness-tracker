@@ -12,7 +12,7 @@ export default function handler(req, res) {
     redirect_uri: `${process.env.NEXT_PUBLIC_BASE_URL}/api/auth/callback`,
     response_type: 'code',
     approval_prompt: 'auto',
-    scope: 'read,activity:read_all',
+    scope: 'read,activity:read_all,activity:write',
     state: process.env.STRAVA_SETUP_SECRET,
   })
   res.redirect(`https://www.strava.com/oauth/authorize?${params}`)
