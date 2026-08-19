@@ -1,7 +1,39 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap');
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap')
+layer(base);
+@import 'tailwindcss';
+
+@theme {
+  --color-midnight: #0a0e1a;
+  --color-panel: #111827;
+  --color-border: #1f2937;
+  --color-accent: #f97316;
+  --color-pulse: #ef4444;
+  --color-zone2: #22d3ee;
+  --color-good: #4ade80;
+  --color-warn: #fbbf24;
+  --color-muted: #6b7280;
+
+  --font-mono: JetBrains Mono, Fira Code, monospace;
+  --font-sans: Inter, system-ui, sans-serif;
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
 
 body { background: #0A0E1A; color: #F9FAFB; }
 

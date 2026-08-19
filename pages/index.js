@@ -213,7 +213,7 @@ function ActivityRow({ act, onClick }) {
   return (
     <div
       onClick={onClick}
-      className="flex items-center gap-3 py-3 border-b border-border last:border-0 hover:bg-white/[0.02] transition-colors px-2 -mx-2 rounded cursor-pointer"
+      className="flex items-center gap-3 py-3 border-b border-border last:border-0 hover:bg-white/2 transition-colors px-2 -mx-2 rounded-sm cursor-pointer"
     >
       <span className="text-lg w-6">{typeIcon(act.type)}</span>
       <div className="flex-1 min-w-0">
@@ -317,7 +317,7 @@ function NutritionPanel({ data, loading, error, onRefresh }) {
           <p className="text-xs text-muted font-mono">No nutrition data synced yet</p>
           <button
             onClick={onRefresh}
-            className="text-xs font-mono bg-accent/10 hover:bg-accent/20 text-accent px-3 py-1.5 rounded transition-colors"
+            className="text-xs font-mono bg-accent/10 hover:bg-accent/20 text-accent px-3 py-1.5 rounded-sm transition-colors"
           >
             Pull now →
           </button>
@@ -376,13 +376,13 @@ function ActivityDetailModal({ activityId, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 bg-black/70 backdrop-blur-xs overflow-y-auto"
       onClick={onClose}
     >
       <div className="stat-card w-full max-w-2xl my-8" onClick={e => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-2 gap-3">
           <span className="section-title mb-0">{activity?.name || 'Activity'}</span>
-          <button onClick={onClose} className="text-muted hover:text-white text-lg leading-none flex-shrink-0">✕</button>
+          <button onClick={onClose} className="text-muted hover:text-white text-lg leading-none shrink-0">✕</button>
         </div>
 
         {loading && <div className="py-8 text-center text-xs font-mono text-muted animate-pulse">Loading activity...</div>}
@@ -415,7 +415,7 @@ function ActivityDetailModal({ activityId, onClose }) {
             {activity.photos.length > 0 && (
               <div className="flex gap-2 overflow-x-auto">
                 {activity.photos.map((url, i) => (
-                  <img key={i} src={url} alt="" className="h-28 rounded-lg object-cover flex-shrink-0" />
+                  <img key={i} src={url} alt="" className="h-28 rounded-lg object-cover shrink-0" />
                 ))}
               </div>
             )}
@@ -499,11 +499,11 @@ function RecordCard({ recordKey, record, onClick }) {
 function RecordDetailModal({ recordKey, record, onClose, onViewActivity }) {
   const label = RECORD_LABELS[recordKey]
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs" onClick={onClose}>
       <div className="stat-card w-full max-w-sm" onClick={e => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-3 gap-3">
           <span className="section-title mb-0">{label}</span>
-          <button onClick={onClose} className="text-muted hover:text-white text-lg leading-none flex-shrink-0">✕</button>
+          <button onClick={onClose} className="text-muted hover:text-white text-lg leading-none shrink-0">✕</button>
         </div>
         <div className="grid grid-cols-2 gap-3 mb-3">
           {recordKey === 'longestRun' ? (
@@ -588,11 +588,11 @@ function BadgeCard({ badge, highlight, onClick }) {
 
 function BadgeDetailModal({ badge, onClose }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs" onClick={onClose}>
       <div className="stat-card w-full max-w-sm text-center" onClick={e => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-3 gap-3">
           <span className="section-title mb-0">Badge</span>
-          <button onClick={onClose} className="text-muted hover:text-white text-lg leading-none flex-shrink-0">✕</button>
+          <button onClick={onClose} className="text-muted hover:text-white text-lg leading-none shrink-0">✕</button>
         </div>
         <span className="text-4xl">🏅</span>
         <p className="font-mono font-bold mt-2">{badge.name}</p>
@@ -703,7 +703,7 @@ function SocialDropdown() {
         onClick={() => setOpen(o => !o)}
         aria-label="Follow me"
         aria-expanded={open}
-        className="text-muted hover:text-white transition-colors border border-border p-1.5 rounded flex items-center"
+        className="text-muted hover:text-white transition-colors border border-border p-1.5 rounded-sm flex items-center"
       >
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
           <circle cx="18" cy="5" r="3" />
@@ -722,7 +722,7 @@ function SocialDropdown() {
               target="_blank"
               rel="noreferrer"
               title={`Follow me on ${name}`}
-              className="p-2 rounded hover:bg-white/5 transition-colors"
+              className="p-2 rounded-sm hover:bg-white/5 transition-colors"
               style={{ color }}
             >
               <Icon />
@@ -865,7 +865,7 @@ export default function Dashboard() {
 
       <div className="min-h-screen bg-midnight text-white">
         {/* Header */}
-        <header className="border-b border-border px-4 py-3 flex items-center justify-between flex-wrap gap-y-2 sticky top-0 bg-midnight/95 backdrop-blur z-10">
+        <header className="border-b border-border px-4 py-3 flex items-center justify-between flex-wrap gap-y-2 sticky top-0 bg-midnight/95 backdrop-blur-sm z-10">
           <div className="flex items-center gap-3 flex-wrap">
             <span className="font-mono font-bold text-accent">⚡ NAVJEET'S FITNESS TRACKER</span>
             {athlete && (
@@ -884,7 +884,7 @@ export default function Dashboard() {
             )}
             <button
               onClick={handleRefresh}
-              className="text-xs font-mono text-muted hover:text-white transition-colors border border-border px-3 py-1.5 rounded"
+              className="text-xs font-mono text-muted hover:text-white transition-colors border border-border px-3 py-1.5 rounded-sm"
             >
               ↻ Refresh
             </button>
@@ -1094,7 +1094,7 @@ export default function Dashboard() {
             {loading.strava ? (
               <div className="space-y-3">
                 {[...Array(5)].map((_, i) => (
-                  <div key={i} className="h-12 bg-border/30 rounded animate-pulse" />
+                  <div key={i} className="h-12 bg-border/30 rounded-sm animate-pulse" />
                 ))}
               </div>
             ) : strava?.activities?.length ? (
